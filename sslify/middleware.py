@@ -9,8 +9,11 @@ except ImportError:
     from urllib.parse import urlsplit
     from urllib.parse import urlunsplit
 
+import logging
 from django.conf import settings
 from django.http import HttpResponsePermanentRedirect
+
+LOGGER = logging.getLogger(__name__)
 
 
 class SSLifyMiddleware(object):
@@ -27,8 +30,10 @@ class SSLifyMiddleware(object):
     def process_request(self, request):
         # If the user has explicitly disabled SSLify, do nothing.
         if getattr(settings, 'SSLIFY_DISABLE', settings.DEBUG):
+            LOGGER.info("sslify disabled")
             return None
 
+        LOGGER.info("sslify enabled")
         # Evaluate callables that can disable SSL for the current request
         per_request_disables = getattr(settings, 'SSLIFY_DISABLE_FOR_REQUEST', [])
         for should_disable in per_request_disables:
@@ -37,11 +42,16 @@ class SSLifyMiddleware(object):
 
         # If we get here, proceed as normal.
         if not request.is_secure():
+            LOGGER.info("request not secure")
             url = request.build_absolute_uri(request.get_full_path())
+            LOGGER.info(url)
             url_split = urlsplit(url)
             scheme = 'https' if url_split.scheme == 'http' else url_split.scheme
             ssl_port = getattr(settings, 'SSLIFY_PORT', 443)
             url_secure_split = (scheme, "%s:%d" % (url_split.hostname or '', ssl_port)) + url_split[2:]
             secure_url = urlunsplit(url_secure_split)
+            LOGGER.info(secure_url)
 
             return HttpResponsePermanentRedirect(secure_url)
+        else:
+            LOGGER.info("request secure")
